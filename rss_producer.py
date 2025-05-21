@@ -131,23 +131,25 @@ def fetch_and_process_rss(feed_name, feed_url):
 
                 # Przygotowanie danych do wysłania do Kafki
                 # Używamy timestampu z RSS, jeśli dostępny, inaczej aktualny czas UTC
-                published_time = datetime.now(timezone.utc).isoformat()
+                ingestion_time = datetime.now(timezone.utc).isoformat()   # ← zawsze czas przyjęcia
+                article_time   = None
                 if hasattr(entry, 'published_parsed'):
-                    try:
-                        # Parsowanie daty z feeda i konwersja na format ISO 8601 z UTC
-                        published_time = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc).isoformat()
-                    except Exception as dt_e:
-                        logging.warning(f"Nie udało się sparsować daty '{getattr(entry, 'published', 'N/A')}' dla {link}: {dt_e}. Używam aktualnego czasu UTC.")
-
-
+                        try:
+                            article_time = datetime(*entry.published_parsed[:6],
+                                            tzinfo=timezone.utc).isoformat()
+                        except Exception:
+                            pass   # zostaw None, jeśli parsowanie się nie udało
                 message = {
-                    'timestamp': published_time,
-                    'source': feed_name,
-                    'headline': title,
-                    'url': link,
-                    'sentiment_label': sentiment_label,
-                    'sentiment_score': sentiment_score
-                }
+                        'timestamp': ingestion_time,     # ← to będzie klucz do agregacji
+                    	'article_time': article_time,    # ← opcjonalnie: „oryginalna data”
+                    	'source': feed_name,
+                    	'headline': title,
+                    	'url': link,
+                    	'sentiment_label': sentiment_label,
+                    	'sentiment_score': sentiment_score
+        	}
+
+
 
                 # Wysłanie wiadomości do Kafki
                 # Używamy producenta zainicjalizowanego globalnie
